@@ -8,6 +8,7 @@ name = "pvm"
 path = "src/main.rs"
 
 [dependencies]
+revm = { version = "36", default-features = false, features = ["std"] }
 polkavm = { version = "0.31.0" }
 polkavm-derive = { version = "0.31.0" }
 

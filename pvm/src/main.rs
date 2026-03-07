@@ -6,11 +6,12 @@
 //!   cd ../fibonacci-rust && ./build.sh
 //!   cargo run -- ../fibonacci-rust/fibonacci.polkavm
 
-mod contracts;
+mod evm_runner;
 mod polkavm_runner;
 use alloy_primitives::{Bytes, U256};
 use alloy_sol_types::{sol, SolCall};
 use anyhow::{anyhow, Result};
+use evm_runner::RevmExecutor;
 use polkavm_runner::PolkaVmExecutor;
 
 /// Load PolkaVM bytecode from file
@@ -56,6 +57,25 @@ fn bench_revm_arithmetic() {
         }
     };
 
+    let mut executor = RevmExecutor::new();
+    executor.deploy(bytecode.clone()).unwrap();
+    let calldata = arithmetic::encode_compute(U256::from(12345), U256::from(6789));
+
+    let result = executor.call(calldata).unwrap();
+    println!("Result: {:?}", result);
+}
+
+/// Benchmark arithmetic operations on revm
+fn bench_pvm_arithmetic() {
+    // Load bytecode
+    let bytecode = match load_polkavm_bytecode() {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("Skipping revm arithmetic benchmark: {}", e);
+            return;
+        }
+    };
+
     let mut executor = match PolkaVmExecutor::new() {
         Ok(e) => e,
         Err(e) => {
@@ -81,7 +101,7 @@ fn bench_revm_arithmetic() {
 
 // sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    bench_revm_arithmetic();
+    bench_pvm_arithmetic();
 
     Ok(())
 }
