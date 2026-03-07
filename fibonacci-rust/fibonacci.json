@@ -1,0 +1,9 @@
+[
+  {
+    "inputs": [{ "internalType": "uint32", "name": "", "type": "uint32" }],
+    "name": "fibonacci",
+    "outputs": [{ "internalType": "uint32", "name": "", "type": "uint32" }],
+    "stateMutability": "pure",
+    "type": "function"
+  }
+]

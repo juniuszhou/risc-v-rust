@@ -27,3 +27,11 @@ execute
 ```bash
 riscv64-unknown-elf-objdump -d target/riscv32im-unknown-none-elf/release/riscv
 ```
+
+## benchmark
+
+https://github.com/etherdata-blockchain/evm-polkavm-bench/blob/main/benches/comparison.rs
+
+## tool
+
+cargo install cargo-pvm-contract
