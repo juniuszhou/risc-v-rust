@@ -1,0 +1,19 @@
+[package]
+name = "pvm"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "pvm"
+path = "src/main.rs"
+
+[dependencies]
+polkavm = { version = "0.31.0" }
+polkavm-derive = { version = "0.31.0" }
+
+alloy-primitives = "1.5.6"
+alloy-sol-types = "1.5.6"
+anyhow = "1.0.99"
+
+[dev-dependencies]
+polkavm-common = { version = "0.31.0", features = ["export-internals-for-testing"] }
