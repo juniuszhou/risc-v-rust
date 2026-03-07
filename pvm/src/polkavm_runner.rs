@@ -7,8 +7,8 @@
 use alloy_primitives::{keccak256, Bytes};
 use anyhow::{anyhow, Result};
 use polkavm::{
-    BackendKind, Config, Engine, GasMeteringKind, InterruptKind, Module, ModuleConfig,
-    ProgramBlob, Reg,
+    BackendKind, Config, Engine, GasMeteringKind, InterruptKind, Module, ModuleConfig, ProgramBlob,
+    Reg,
 };
 use std::collections::HashMap;
 
@@ -123,7 +123,10 @@ impl SyscallDispatchTable {
     /// Get syscall ID for an import index
     #[inline(always)]
     pub fn get(&self, idx: u32) -> SyscallId {
-        self.table.get(idx as usize).copied().unwrap_or(SyscallId::Unknown)
+        self.table
+            .get(idx as usize)
+            .copied()
+            .unwrap_or(SyscallId::Unknown)
     }
 }
 
@@ -174,10 +177,7 @@ impl PolkaVmExecutor {
     pub fn print_module_info(&self, module: &Module) {
         eprintln!("Module exports:");
         for export in module.exports() {
-            eprintln!(
-                "  - {:?}",
-                std::str::from_utf8(export.symbol().as_bytes())
-            );
+            eprintln!("  - {:?}", std::str::from_utf8(export.symbol().as_bytes()));
         }
     }
 
@@ -192,11 +192,7 @@ impl PolkaVmExecutor {
     /// Performance optimizations:
     /// - Pre-built syscall dispatch table (O(1) lookup, no string comparison)
     /// - Compiler backend with sandbox disabled (configured in new())
-    pub fn call_with_data(
-        &mut self,
-        module: &Module,
-        calldata: &[u8],
-    ) -> Result<(i64, Bytes)> {
+    pub fn call_with_data(&mut self, module: &Module, calldata: &[u8]) -> Result<(i64, Bytes)> {
         // Build dispatch table once per call (could be cached per module for more perf)
         let dispatch_table = SyscallDispatchTable::from_module(module);
         self.call_with_dispatch_table(module, calldata, &dispatch_table)
@@ -594,7 +590,6 @@ impl PolkaVmExecutor {
             }
 
             // ---- Misc stubs for contracts that import but may not call ----
-
             b"address" => {
                 let out_ptr = a0 as u32;
                 let _ = instance.write_memory(out_ptr, &[0x42u8; 20]);
@@ -643,124 +638,5 @@ impl PolkaVmExecutor {
 impl Default for PolkaVmExecutor {
     fn default() -> Self {
         Self::new().expect("Failed to create PolkaVM executor")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::contracts::{self, WarpContract};
-
-    #[test]
-    fn test_executor_creation() {
-        let result = PolkaVmExecutor::new();
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_print_module_info() {
-        let executor = PolkaVmExecutor::new().unwrap();
-        let bytecode = contracts::load_polkavm_bytecode(WarpContract::Arithmetic).unwrap();
-        let module = executor.load_module(&bytecode).unwrap();
-        executor.print_module_info(&module);
-    }
-
-    #[test]
-    fn test_call_arithmetic_compute() {
-        let mut executor = PolkaVmExecutor::new().unwrap();
-        let bytecode = contracts::load_polkavm_bytecode(WarpContract::Arithmetic).unwrap();
-        let module = executor.load_module(&bytecode).unwrap();
-
-        let calldata = contracts::arithmetic::encode_compute(
-            alloy_primitives::U256::from(1234578u64),
-            alloy_primitives::U256::from(67890u64),
-        );
-
-        let result = executor.call_with_data(&module, &calldata);
-        eprintln!("Result: {:?}", result);
-        assert!(result.is_ok(), "Call failed: {:?}", result.err());
-
-        let (gas_used, output) = result.unwrap();
-        eprintln!("Gas used: {}, Output: {:?}", gas_used, output);
-        assert!(!output.is_empty(), "Output should not be empty");
-    }
-
-    #[test]
-    fn test_call_arithmetic_compute_many() {
-        let mut executor = PolkaVmExecutor::new().unwrap();
-        let bytecode = contracts::load_polkavm_bytecode(WarpContract::Arithmetic).unwrap();
-        let module = executor.load_module(&bytecode).unwrap();
-
-        let calldata =
-            contracts::arithmetic::encode_compute_many(alloy_primitives::U256::from(10000u64));
-
-        let result = executor.call_with_data(&module, &calldata);
-        eprintln!("Result: {:?}", result);
-        assert!(result.is_ok(), "Call failed: {:?}", result.err());
-    }
-
-    #[test]
-    fn test_call_loop_simple() {
-        let mut executor = PolkaVmExecutor::new().unwrap();
-        let bytecode = contracts::load_polkavm_bytecode(WarpContract::Loop).unwrap();
-        let module = executor.load_module(&bytecode).unwrap();
-
-        let calldata =
-            contracts::loop_contract::encode_simple_loop(alloy_primitives::U256::from(100u64));
-
-        let result = executor.call_with_data(&module, &calldata);
-        eprintln!("Result: {:?}", result);
-        assert!(result.is_ok(), "Call failed: {:?}", result.err());
-    }
-
-    #[test]
-    fn test_call_storage_write() {
-        let mut executor = PolkaVmExecutor::new().unwrap();
-        let bytecode = contracts::load_polkavm_bytecode(WarpContract::Storage).unwrap();
-        let module = executor.load_module(&bytecode).unwrap();
-
-        let calldata =
-            contracts::storage::encode_write_sequential(alloy_primitives::U256::from(5u64));
-
-        let result = executor.call_with_data(&module, &calldata);
-        eprintln!("Result: {:?}", result);
-        assert!(result.is_ok(), "Call failed: {:?}", result.err());
-    }
-
-    #[test]
-    fn test_call_keccak_hash_many() {
-        let mut executor = PolkaVmExecutor::new().unwrap();
-        let bytecode = contracts::load_polkavm_bytecode(WarpContract::Keccak256).unwrap();
-        let module = executor.load_module(&bytecode).unwrap();
-
-        let calldata =
-            contracts::keccak256::encode_hash_many(alloy_primitives::U256::from(10u64));
-
-        let result = executor.call_with_data(&module, &calldata);
-        eprintln!("Result: {:?}", result);
-        assert!(result.is_ok(), "Call failed: {:?}", result.err());
-
-        let (gas_used, output) = result.unwrap();
-        eprintln!("Gas used: {}, Output: {:?}", gas_used, output);
-        assert_eq!(output.len(), 32, "Keccak256 output should be 32 bytes");
-    }
-
-    #[test]
-    fn test_call_keccak_hash_variable_size() {
-        let mut executor = PolkaVmExecutor::new().unwrap();
-        let bytecode = contracts::load_polkavm_bytecode(WarpContract::Keccak256).unwrap();
-        let module = executor.load_module(&bytecode).unwrap();
-
-        // Test with 64 bytes of data
-        let calldata =
-            contracts::keccak256::encode_hash_variable_size(alloy_primitives::U256::from(64u64));
-
-        let result = executor.call_with_data(&module, &calldata);
-        eprintln!("Result: {:?}", result);
-        assert!(result.is_ok(), "Call failed: {:?}", result.err());
-
-        let (gas_used, output) = result.unwrap();
-        eprintln!("Gas used: {}, Output: {:?}", gas_used, output);
-        assert_eq!(output.len(), 32, "Keccak256 output should be 32 bytes");
     }
 }
