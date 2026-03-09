@@ -2,10 +2,12 @@
 
 use anyhow::{anyhow, Result};
 use revm::{
-    primitives::{
-        AccountInfo, Address, Bytecode, Bytes, ExecutionResult, Output, TransactTo, TxEnv, U256,
-    },
-    Evm, InMemoryDB,
+    context::{result::ExecutionResult, transaction::AccessList, Context, TxEnv},
+    context_interface::ContextTr,
+    database::InMemoryDB,
+    handler::{ExecuteCommitEvm, MainBuilder, MainContext, MainnetEvm},
+    primitives::{Address, Bytes, TxKind, U256},
+    state::{AccountInfo, Bytecode},
 };
 
 /// Contract address used for deployment
@@ -19,44 +21,98 @@ pub const GAS_LIMIT: u64 = 300_000_000;
 
 /// EVM executor wrapper for benchmarking
 pub struct RevmExecutor {
-    db: InMemoryDB,
+    evm: MainnetEvm<
+        Context<
+            revm::context::BlockEnv,
+            TxEnv,
+            revm::context::CfgEnv,
+            InMemoryDB,
+            revm::context::Journal<InMemoryDB>,
+            (),
+        >,
+    >,
+    /// Deployed contract address (set by deploy or deploy_create)
+    contract_address: Address,
 }
 
 impl RevmExecutor {
     /// Create a new executor with empty state
     pub fn new() -> Self {
         let mut db = InMemoryDB::default();
-
-        // Set up caller account with balance
         db.insert_account_info(
             CALLER_ADDRESS,
             AccountInfo {
                 balance: U256::from(1_000_000_000_000_000_000u128), // 1 ETH
                 nonce: 0,
                 code_hash: Default::default(),
+                account_id: Default::default(),
                 code: None,
             },
         );
 
-        Self { db }
+        let ctx = Context::mainnet()
+            .modify_cfg_chained(|cfg| cfg.tx_gas_limit_cap = Some(GAS_LIMIT))
+            .with_db(db);
+        let evm = ctx.build_mainnet();
+        Self {
+            evm,
+            contract_address: CONTRACT_ADDRESS,
+        }
     }
 
-    /// Deploy bytecode to the contract address
+    /// Deploy runtime bytecode directly to CONTRACT_ADDRESS (for hand-crafted or runtime-only code)
     pub fn deploy(&mut self, bytecode: impl Into<Bytes>) -> Result<()> {
         let bytecode = bytecode.into();
         let code = Bytecode::new_raw(bytecode);
 
-        self.db.insert_account_info(
+        self.evm.db_mut().insert_account_info(
             CONTRACT_ADDRESS,
             AccountInfo {
                 balance: U256::ZERO,
                 nonce: 1,
                 code_hash: code.hash_slow(),
                 code: Some(code),
+                account_id: Default::default(),
             },
         );
-
+        self.contract_address = CONTRACT_ADDRESS;
         Ok(())
+    }
+
+    /// Deploy via CREATE - use for Solidity deployment bytecode (init + runtime).
+    /// Returns the created contract address.
+    pub fn deploy_create(&mut self, init_bytecode: impl Into<Bytes>) -> Result<Address> {
+        let init_bytecode = init_bytecode.into();
+        let tx = TxEnv {
+            caller: CALLER_ADDRESS,
+            kind: TxKind::Create,
+            tx_type: 0,
+            gas_limit: GAS_LIMIT,
+            gas_price: 1u128,
+            value: U256::ZERO,
+            data: init_bytecode,
+            nonce: 0,
+            chain_id: Some(1),
+            access_list: AccessList::default(),
+            gas_priority_fee: None,
+            blob_hashes: vec![],
+            max_fee_per_blob_gas: 1_u128,
+            authorization_list: vec![],
+        };
+
+        let result = self.evm.transact_commit(tx)?;
+        match result {
+            ExecutionResult::Success { output, .. } => {
+                let addr = output
+                    .address()
+                    .copied()
+                    .ok_or_else(|| anyhow!("CREATE did not return address"))?;
+                self.contract_address = addr;
+                Ok(addr)
+            }
+            ExecutionResult::Revert { output, .. } => Err(anyhow!("CREATE reverted: {:?}", output)),
+            ExecutionResult::Halt { reason, .. } => Err(anyhow!("CREATE halted: {:?}", reason)),
+        }
     }
 
     /// Execute a contract call with given calldata
@@ -64,51 +120,47 @@ impl RevmExecutor {
         let calldata = calldata.into();
         let tx = TxEnv {
             caller: CALLER_ADDRESS,
+            kind: TxKind::Call(self.contract_address),
+            tx_type: 0,
             gas_limit: GAS_LIMIT,
-            gas_price: U256::from(1),
-            transact_to: TransactTo::Call(CONTRACT_ADDRESS),
+            gas_price: 1u128,
             value: U256::ZERO,
             data: calldata,
-            nonce: None,
+            nonce: 0,
             chain_id: Some(1),
-            access_list: vec![],
+            access_list: AccessList::default(),
             gas_priority_fee: None,
             blob_hashes: vec![],
-            max_fee_per_blob_gas: None,
-            authorization_list: None,
+            max_fee_per_blob_gas: 1_u128,
+            authorization_list: vec![],
         };
 
-        let mut evm = Evm::builder().with_db(&mut self.db).with_tx_env(tx).build();
-
-        let result = evm.transact_commit()?;
+        let result = self.evm.transact_commit(tx)?;
 
         match result {
-            ExecutionResult::Success {
-                gas_used, output, ..
-            } => {
-                let data = match output {
-                    Output::Call(data) => data,
-                    Output::Create(data, _) => data,
-                };
-                Ok((gas_used, data))
-            }
-            ExecutionResult::Revert { gas_used, output } => Err(anyhow!(
+            ExecutionResult::Success { gas, output, .. } => Ok((gas.used(), output.into_data())),
+            ExecutionResult::Revert { gas, output, .. } => Err(anyhow!(
                 "Execution reverted: gas_used={}, output={:?}",
-                gas_used,
+                gas.used(),
                 output
             )),
-            ExecutionResult::Halt { reason, gas_used } => Err(anyhow!(
+            ExecutionResult::Halt { reason, gas, .. } => Err(anyhow!(
                 "Execution halted: {:?}, gas_used={}",
                 reason,
-                gas_used
+                gas.used()
             )),
         }
     }
 
     /// Reset storage state (useful between benchmark iterations)
     pub fn reset_storage(&mut self) {
-        // Clear storage for contract address
-        if let Some(account) = self.db.accounts.get_mut(&CONTRACT_ADDRESS) {
+        if let Some(account) = self
+            .evm
+            .db_mut()
+            .cache
+            .accounts
+            .get_mut(&self.contract_address)
+        {
             account.storage.clear();
         }
     }
@@ -120,22 +172,25 @@ impl Default for RevmExecutor {
     }
 }
 
-/// Benchmark arithmetic operations on revm
-fn bench_revm_arithmetic() {
-    // Load bytecode
-    let bytecode = load_evm_bytecode() {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("Skipping revm arithmetic benchmark: {}", e);
-            return;
-        }
-    };
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    
-        let mut executor = RevmExecutor::new();
-        executor.deploy(bytecode.clone()).unwrap();
-        let calldata = contracts::arithmetic::encode_compute(U256::from(12345), U256::from(6789));
-
-        let result = executor.call(calldata.clone()).unwrap();
-    
+    #[test]
+    fn evm_deploy_and_call() {
+        let mut exec = RevmExecutor::new();
+        // Deploy bytecode: PUSH1 0x42, PUSH1 0, MSTORE, PUSH1 1, PUSH1 31, RETURN (returns 0x42)
+        let bytecode = Bytes::from([
+            0x60, 0x42, // PUSH1 0x42
+            0x60, 0x00, // PUSH1 0
+            0x52, // MSTORE
+            0x60, 0x01, // PUSH1 1
+            0x60, 0x1f, // PUSH1 31
+            0xf3, // RETURN
+        ]);
+        exec.deploy(bytecode).unwrap();
+        let (gas_used, output) = exec.call(Bytes::new()).unwrap();
+        assert!(gas_used > 0);
+        assert_eq!(output.as_ref(), &[0x42]);
+    }
 }
