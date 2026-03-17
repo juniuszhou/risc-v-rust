@@ -42,12 +42,17 @@ The interact script reads the current count, increments it, and prints the new c
 
 ## Environment
 
-| Variable         | Description                              |
-|-----------------|------------------------------------------|
-| `PRIVATE_KEY`   | Wallet private key (with `0x` prefix)    |
+| Variable           | Description                              |
+| ------------------ | ---------------------------------------- |
+| `PRIVATE_KEY`      | Wallet private key (with `0x` prefix)    |
 | `CONTRACT_ADDRESS` | Deployed contract address (for interact) |
 
 ## Network
 
 - **RPC:** https://services.polkadothub-rpc.com/testnet
 - **Chain ID:** 420420417
+
+##
+
+npm i polkadot-api
+npx papi add hub -w wss://sys.turboflakes.io/asset-hub-paseo

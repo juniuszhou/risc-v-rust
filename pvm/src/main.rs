@@ -145,7 +145,7 @@ fn bench_pvm_arithmetic() {
 
 // sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    bench_revm_arithmetic();
+    bench_pvm_arithmetic();
 
     Ok(())
 }

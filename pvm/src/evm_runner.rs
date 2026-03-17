@@ -39,6 +39,7 @@ impl RevmExecutor {
     /// Create a new executor with empty state
     pub fn new() -> Self {
         let mut db = InMemoryDB::default();
+
         db.insert_account_info(
             CALLER_ADDRESS,
             AccountInfo {
@@ -100,7 +101,12 @@ impl RevmExecutor {
             authorization_list: vec![],
         };
 
-        let result = self.evm.transact_commit(tx)?;
+        let mut context = Context::mainnet()
+            .modify_cfg_chained(|cfg| cfg.tx_gas_limit_cap = Some(GAS_LIMIT))
+            .with_db(self.evm.db_mut())
+            .build_mainnet();
+
+        let result = context.transact_commit(tx).unwrap();
         match result {
             ExecutionResult::Success { output, .. } => {
                 let addr = output

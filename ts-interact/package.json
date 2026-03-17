@@ -10,7 +10,12 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "ethers": "^6.13.0"
+    "@polkadot-api/descriptors": "file:.papi/descriptors",
+    "@polkadot-labs/hdkd": "^0.0.26",
+    "@polkadot-labs/hdkd-helpers": "^0.0.27",
+    "ethers": "^6.13.0",
+    "hdkd": "github:polkadot-labs/hdkd",
+    "polkadot-api": "^1.23.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
