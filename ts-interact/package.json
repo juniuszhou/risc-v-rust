@@ -6,6 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "deploy": "ts-node src/deploy.ts",
+    "deploy:native": "ts-node src/deploy_native.ts",
     "interact": "ts-node src/interact.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -13,6 +14,7 @@
     "@polkadot-api/descriptors": "file:.papi/descriptors",
     "@polkadot-labs/hdkd": "^0.0.26",
     "@polkadot-labs/hdkd-helpers": "^0.0.27",
+    "@noble/hashes": "^1.6.0",
     "ethers": "^6.13.0",
     "hdkd": "github:polkadot-labs/hdkd",
     "polkadot-api": "^1.23.3"

@@ -1,0 +1,15 @@
+[
+  {"constant":true,"inputs":[],"name":"factory","outputs":[{"type":"address"}],"type":"function"},
+  {"constant":true,"inputs":[],"name":"token0","outputs":[{"type":"address"}],"type":"function"},
+  {"constant":true,"inputs":[],"name":"token1","outputs":[{"type":"address"}],"type":"function"},
+  {"constant":true,"inputs":[],"name":"getReserves","outputs":[{"type":"uint112"},{"type":"uint112"},{"type":"uint32"}],"type":"function"},
+  {"constant":true,"inputs":[],"name":"totalSupply","outputs":[{"type":"uint256"}],"type":"function"},
+  {"constant":true,"inputs":[{"name":"owner","type":"address"}],"name":"balanceOf","outputs":[{"type":"uint256"}],"type":"function"},
+  {"constant":false,"inputs":[{"name":"token0_","type":"address"},{"name":"token1_","type":"address"}],"name":"initialize","outputs":[],"type":"function"},
+  {"constant":false,"inputs":[{"name":"to","type":"address"}],"name":"mint","outputs":[{"type":"uint256"}],"type":"function"},
+  {"constant":false,"inputs":[{"name":"to","type":"address"}],"name":"burn","outputs":[{"type":"uint256"},{"type":"uint256"}],"type":"function"},
+  {"constant":false,"inputs":[{"name":"amount0Out","type":"uint256"},{"name":"amount1Out","type":"uint256"},{"name":"to","type":"address"},{"name":"data","type":"bytes"}],"name":"swap","outputs":[],"type":"function"},
+  {"constant":false,"inputs":[{"name":"to","type":"address"}],"name":"skim","outputs":[],"type":"function"},
+  {"constant":false,"inputs":[],"name":"sync","outputs":[],"type":"function"},
+  {"constant":true,"inputs":[],"name":"MINIMUM_LIQUIDITY","outputs":[{"type":"uint256"}],"type":"function"}
+]
